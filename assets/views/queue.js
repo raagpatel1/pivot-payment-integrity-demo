@@ -58,7 +58,7 @@
         document.getElementById("q-body").innerHTML = rows.map(function (r) {
           return '<tr class="row" data-id="' + r.id + '"' + (r.hero ? ' data-hero="1"' : '') + '>' +
             '<td>' + window.UI.riskChip(r.riskScore) + '</td>' +
-            '<td><div style="display:flex;gap:6px;align-items:center"><span class="mono" style="font-weight:500">#' + r.id + '</span><span class="tag">' + r.claimType + '</span></div>' +
+            '<td><div style="display:flex;gap:6px;align-items:center"><span class="mono" style="font-weight:500">#' + r.id + '</span>' + window.UI.subjectBadge(r.subjectType, { small: true }) + (r.claimType ? '<span class="tag">' + r.claimType + '</span>' : '') + '</div>' +
             '<div style="margin-top:3px;display:flex;gap:6px;align-items:center"><span class="tag fwa">' + r.fwaType + '</span>' + window.UI.srcTag(r.source) + (r.manual ? '<span class="tag" style="background:var(--med-bg);color:var(--med-tx)">manual</span>' : '') + '</div></td>' +
             '<td><div style="font-weight:500">' + window.APP.esc(r.providerName) + '</div><div class="mono" style="font-size:10.5px;color:var(--text3)">NPI ' + r.providerNpi + ' · ' + r.providerState + '</div></td>' +
             '<td class="right" style="font-weight:500">' + window.DP.usd(r.exposurePost) + '</td>' +

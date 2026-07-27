@@ -578,6 +578,25 @@
       // fallback until the portal view ships: log the upload directly
       APP.receiveRecords(id, { name: "provider-records_Lead-" + id + ".pdf", size: 348000, via: "portal" });
     },
+    // Logo toggle: jump into the provider portal (upload docs), or back out to the
+    // view you were on. Opens the portal against the lead you're looking at, else a
+    // sensible default, seeding a portal records-request so it has context.
+    togglePortal: function () {
+      if (APP.state.view === "portal") {
+        APP.state._portalStaged = [];
+        var snap = APP.state._prePortalSnap;
+        APP.state._prePortalSnap = null;
+        if (snap && snap.view && snap.view !== "portal") {
+          APP.state.allegationId = snap.allegationId; APP.state.providerId = snap.providerId; APP.state.businessId = snap.businessId;
+          APP.nav(snap.view, { id: snap.allegationId || snap.businessId });
+        } else { APP.openArea("home"); }
+        return;
+      }
+      var id = APP.state.allegationId || "20481";
+      APP.state._prePortalSnap = APP.snapshot();
+      if (APP.recordsRequestFor && !APP.recordsRequestFor(id)) APP.requestRecords(id, { channel: "portal", items: "Progress notes and E/M documentation supporting the level billed." });
+      APP.openPortal(id);
+    },
 
     // ---- generated artifacts (AI justification memos attached to a lead) ----
     // Unlike uploads (name + size only), an artifact carries its body, so it can be
@@ -727,11 +746,11 @@
       home: [],
       casework: [{ v: "queue", l: "Leads", role: "analyst" }, { v: "approvals", l: "Approvals", role: "supervisor" }, { v: "casereviews", l: "Case reviews", role: "supervisor" }, { v: "team", l: "Team", role: "supervisor" }, { v: "investigations", l: "Cases" }],
       insights: [{ v: "analytics", l: "Overview" }, { v: "network", l: "Network" }, { v: "businesses", l: "Businesses" }, { v: "heatmap", l: "Heatmap" }],
-      library: [{ v: "rules", l: "Rules" }, { v: "audit", l: "Audit" }]
+      library: [{ v: "rules", l: "Rules" }, { v: "releases", l: "Releases" }, { v: "audit", l: "Audit" }]
     },
     // portal maps to its own area (no nav item / no subnav) — it is a takeover
     // screen simulating the provider's world, not part of the analyst IA.
-    VIEW_AREA: { home: "home", queue: "casework", claim: "casework", investigations: "casework", approvals: "casework", casereviews: "casework", team: "casework", provider: "insights", analytics: "insights", network: "insights", businesses: "insights", business: "insights", heatmap: "insights", rules: "library", audit: "library", portal: "portal" },
+    VIEW_AREA: { home: "home", queue: "casework", claim: "casework", investigations: "casework", approvals: "casework", casereviews: "casework", team: "casework", provider: "insights", analytics: "insights", network: "insights", businesses: "insights", business: "insights", heatmap: "insights", rules: "library", releases: "library", audit: "library", portal: "portal" },
     subsFor: function (area) { return (APP.SUBS[area] || []).filter(function (s) { return !s.role || s.role === APP.state.role; }); },
     areaOf: function (view) { return APP.VIEW_AREA[view] || "casework"; },
     openArea: function (area) {
@@ -748,7 +767,7 @@
       if (s.view === "claim") return "Lead #" + s.allegationId;
       if (s.view === "provider") { var p = window.DP.getProvider(s.providerId); return p ? p.name : "Provider"; }
       if (s.view === "business") { var b = window.DP.getBusiness(s.businessId); return b ? b.name : "Business"; }
-      var map = { queue: "Leads", home: "Home", investigations: "Cases", approvals: "Approvals", casereviews: "Case reviews", analytics: "Analytics", network: "Network", businesses: "Businesses", heatmap: "Heatmap", rules: "Rules", audit: "Audit" };
+      var map = { queue: "Leads", home: "Home", investigations: "Cases", approvals: "Approvals", casereviews: "Case reviews", analytics: "Analytics", network: "Network", businesses: "Businesses", heatmap: "Heatmap", rules: "Rules", releases: "Releases", audit: "Audit" };
       return map[s.view] || "Back";
     },
     backLabel: function () { return APP.state.hist && APP.state.hist.length ? APP.labelForSnap(APP.state.hist[APP.state.hist.length - 1]) : "Leads"; },
@@ -794,6 +813,8 @@
       document.querySelectorAll(".navitem").forEach(function (n) {
         n.addEventListener("click", function () { APP.openArea(n.getAttribute("data-area")); });
       });
+      var brand = document.querySelector(".brand");
+      if (brand) { brand.style.cursor = "pointer"; brand.title = "Provider portal — upload records (click again to return)"; brand.addEventListener("click", function () { APP.togglePortal(); }); }
       var rs = document.getElementById("role-switch");
       if (rs) rs.addEventListener("click", APP.toggleRole);
       var rd = document.getElementById("reset-demo");
@@ -802,6 +823,7 @@
       APP.setModeHeader();
       APP.setRoleHeader();
       APP.auditLog("SESSION_START", APP.ROLES[APP.state.role].name + " signed in · " + (window.SB && window.SB.enabled ? "authenticated" : "PIV authenticated"));
+      if (window.DP.seedSubjects) window.DP.seedSubjects();
       APP.seedManualLeads();
       APP.seedCases();
       APP.seedCaseReviews();
@@ -837,7 +859,15 @@
     // A lead's shown status: once it's reviewed & confirmed/escalated it has fed a
     // case, so it reads "Pending Case" (the lead's terminal state) in the queues.
     leadStatus: function (a) { return (window.DP && window.DP.isCaseLead && window.DP.isCaseLead(a)) ? "Pending Case" : a.status; },
-    srcTag: function (s) { var lbl = s === "Pattern Recognition" ? "ML/AI" : s === "Rules Engine" ? "Rules" : s === "Both" ? "ML/AI + Rules" : s; return '<span class="muted" style="font-size:10.5px">' + window.APP.esc(lbl) + '</span>'; }
+    srcTag: function (s) { var lbl = s === "Pattern Recognition" ? "ML/AI" : s === "Rules Engine" ? "Rules" : s === "Both" ? "ML/AI + Rules" : s; return '<span class="muted" style="font-size:10.5px">' + window.APP.esc(lbl) + '</span>'; },
+    // Subject-of-investigation badge (Provider / Beneficiary / Pharmacy).
+    subjectBadge: function (aOrType, opts) {
+      opts = opts || {};
+      var t = typeof aOrType === "string" ? aOrType : (window.DP.subjectTypeOf ? window.DP.subjectTypeOf(aOrType) : "Provider");
+      var def = (window.DP.SUBJECT_TYPES && window.DP.SUBJECT_TYPES[t]) || { label: t, icon: "user", tone: "asg", desc: "" };
+      return '<span class="pill p-' + def.tone + '"' + (def.desc ? ' title="Subject of investigation — ' + window.APP.esc(def.desc) + '"' : '') + ' style="font-size:' + (opts.small ? "10px" : "10.5px") + '">' +
+        '<i class="ti ti-' + def.icon + '" style="font-size:11px"></i> ' + (opts.prefix ? "Subject: " : "") + window.APP.esc(def.label) + '</span>';
+    }
   };
 
   // Boot is orchestrated by supabase.js (auth gate in Supabase mode, or immediate in local mode).

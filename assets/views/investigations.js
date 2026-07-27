@@ -34,7 +34,7 @@
             var types = c.fwaTypes.slice(0, 2).map(function (t) { return '<span class="tag fwa">' + window.APP.esc(t) + '</span>'; }).join(" ") + (c.fwaTypes.length > 2 ? ' <span class="muted" style="font-size:10px">+' + (c.fwaTypes.length - 2) + '</span>' : "");
             var multi = c.multiProvider ? ' <span class="tag" style="background:var(--med-bg);color:var(--med-tx)"><i class="ti ti-affiliate"></i> ' + c.providerCount + ' providers</span>' : "";
             return '<tr class="row" data-pid="' + c.providerId + '"><td>' + window.UI.riskChip(c.riskScore) + '</td>' +
-              '<td><div style="font-weight:500">' + window.APP.esc(c.name) + multi + '</div><div class="mono" style="font-size:10.5px;color:var(--text3)">CASE-' + c.providerId + ' · NPI ' + (p.npi || "—") + ' · ' + window.APP.esc(p.state || "") + '</div></td>' +
+              '<td><div style="font-weight:500;display:flex;gap:6px;align-items:center;flex-wrap:wrap">' + window.APP.esc(c.name) + ' ' + window.UI.subjectBadge(c.subjectType, { small: true }) + multi + '</div><div class="mono" style="font-size:10.5px;color:var(--text3)">CASE-' + c.providerId + ' · NPI ' + (p.npi || "—") + ' · ' + window.APP.esc(p.state || "") + '</div></td>' +
               '<td><span class="pill ' + caseCls + '">' + c.status + '</span></td>' +
               '<td class="right" style="font-weight:600">' + c.leadCount + '</td>' +
               '<td class="right">' + (c.openCount ? '<span class="muted">+' + c.openCount + '</span>' : '<span class="muted" style="color:var(--text3)">—</span>') + '</td>' +
