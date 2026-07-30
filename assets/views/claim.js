@@ -33,6 +33,7 @@
       var dec = prepay ? window.APP.prepayDecisionFor(id) : window.APP.decisionFor(id);
       var ring = p.tin && sharesTin(p);
       if (id !== lastId) { curTab = "overview"; claimView = "summary"; lastId = id; }
+      if (id === "20517" && window.APP.state.highlightRule) { curTab = "coding"; }
       ctx = { id: id, a: a, cl: cl, p: p, prepay: prepay };
 
       // evidence documents (shared by the left-rail index and the Evidence tab)
@@ -733,6 +734,22 @@
     if (!cl) return noClaimCard("the CPT crosswalk");
     if (cl.type === "NCPDP") return pharmacyNaCard("NCCI / CPT coding validation");
     var d = window.DP.getCptCrosswalk(cl.id); if (!d) return noClaimCard("the CPT crosswalk");
+    // Traceability banner: injected when the presenter navigates here from the Rules Library.
+    var ruleId = window.APP.state.highlightRule;
+    var bannerHtml = "";
+    if (ruleId) {
+      window.APP.state.highlightRule = null;
+      var ruleMeta = { rule_ncci_43235_43239: { code: "NCCI-43235", name: "NCCI PTP edit — 43235 / 43239" }, rule_mod59: { code: "MOD-59", name: "Modifier-59 / X{EPSU} misuse screen" } };
+      var rm = ruleMeta[ruleId] || { code: ruleId, name: ruleId };
+      bannerHtml = '<div style="display:flex;align-items:flex-start;gap:10px;background:var(--accent-l);border:1.5px solid var(--accent);border-radius:8px;padding:11px 13px;font-size:12px;margin-bottom:0">' +
+        '<i class="ti ti-link" style="color:var(--accent-d);font-size:17px;flex:none;margin-top:1px"></i>' +
+        '<div><div style="font-weight:600;color:var(--accent-d)">Navigated from Rules Library — ' + window.APP.esc(rm.code) + ' · ' + window.APP.esc(rm.name) + '</div>' +
+        '<div style="color:var(--text2);margin-top:2px">This is Lead 20517: <b>Rio Grande Surgical Associates — Unbundling.</b> ' +
+        'CPT 43235 (diagnostic endoscopy) is billed alongside 43239 (biopsy endoscopy) with modifier 59 to bypass the NCCI bundling edit. ' +
+        '43235 is a column-2 component of 43239 — it is not separately payable. ' +
+        'The recoverable exposure is shown below. ' +
+        '<b style="color:var(--accent-d)">Click "← Rules" in the breadcrumb to return to the Rules Library.</b></div></div></div>';
+    }
     var V = {
       pass: ["circle-check", "var(--low-tx)", "var(--low-bg)", "Passes"],
       review: ["alert-triangle", "var(--med-tx)", "var(--med-bg)", "Review"],
@@ -778,6 +795,7 @@
 
     var tone = d.fails ? V.fail : d.reviews ? V.review : V.pass;
     return '<div style="display:flex;flex-direction:column;gap:10px">' +
+      (bannerHtml ? bannerHtml : '') +
       '<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
       '<div style="font-weight:500;font-size:13px"><i class="ti ti-arrows-left-right" style="color:var(--accent-d)"></i> CPT crosswalk <span class="muted" style="font-weight:400;font-size:11px">· is this code payable billed with this modifier?</span></div>' +
       '<span class="tag" style="background:var(--surface)"><i class="ti ti-plug-connected"></i> ' + window.APP.esc(d.source) + '</span></div>' +
