@@ -81,6 +81,8 @@
     // exactly once based on the analyst's proposed case destination (caseLinks[id]).
     supervisorAction: function (id, action, note) {
       var dec = APP.state.decisions[id]; if (!dec) return;
+      // Guard: prevent duplicate audit events if already approved.
+      if (action === "approve" && dec.reviewState === "approved") return;
       var a = window.DP.raw.allegations.find(function (x) { return x.id === id; });
       if (action === "approve") {
         dec.reviewState = "approved";
@@ -230,13 +232,15 @@
 
     // Analyst opens a retrospective lead for active review, advancing the workflow
     // from Assigned → Under review. Guards: must be retrospective, must be assigned,
-    // must not already have a submitted decision.
+    // must not already have a submitted decision, must not already be Under review.
     startLeadReview: function (id) {
       var a = window.DP.raw.allegations.find(function (x) { return x.id === id; });
       if (!a) return;
       if ((a.mode || "retrospective") !== "retrospective") return;
       if (!a.assignee) return;
       if (APP.state.decisions[id]) return;
+      // Guard: prevent duplicate LEAD_REVIEW_STARTED if already under review.
+      if (a.status === "Under review") return;
       a.status = "Under review";
       var who = (APP.ROLES[APP.state.role] || {}).name || "Dana Whitmore";
       APP.auditLog("LEAD_REVIEW_STARTED", "Lead #" + id + " · review started by " + who);

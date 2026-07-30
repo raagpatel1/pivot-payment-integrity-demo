@@ -97,6 +97,8 @@
       if (msHist) msHist.addEventListener("click", function () { showTab("history"); });
       var srBtn = document.getElementById("c-start-review");
       if (srBtn) srBtn.addEventListener("click", function () { window.APP.startLeadReview(id); rerender(id); });
+      var amBtn = document.getElementById("c-assign-me");
+      if (amBtn) amBtn.addEventListener("click", function () { window.APP.assignCase(id, window.APP.ROLES[window.APP.state.role].name); rerender(id); });
       wireExport(id, a, cl, p, prepay, kind);
       mount.querySelectorAll(".ctab").forEach(function (b) { b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); }); });
 
@@ -160,14 +162,21 @@
     var lastHtml = last
       ? '<i class="ti ti-' + ((HIST_ICON[last.action] || ["point"])[0]) + '" style="color:var(--accent-d)"></i> <span style="color:var(--text2)">Last action:</span> <span style="font-weight:500">' + window.APP.esc(histLabel(last.action)) + '</span> <span style="color:var(--text2)">· ' + window.APP.esc(last.user || "—") + ' · ' + window.APP.fmtTs(last.ts) + '</span> <span id="c-ms-hist" style="color:var(--accent-d);cursor:pointer;margin-left:4px">View history →</span>'
       : '<span style="color:var(--text2)">No activity recorded yet.</span>';
-    // Show "Start review" button when: not prepay, assigned, no decision yet, not yet
-    // under review. The button id is wired in render() after DOM insertion.
+    // Show "Start review" when: not prepay, assigned, no decision, not yet Under review.
+    // Show "Assign to me" when: not prepay, not supervisor, unassigned, no decision.
+    // Both buttons are wired in render() after DOM insertion.
+    var isAnalyst = !window.APP.isSupervisor();
     var startBtn = (!prepay && a.assignee && !dec && a.status !== "Under review")
       ? '<div style="border-top:0.5px solid var(--border2);margin-top:6px;padding-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
         '<span style="font-size:11.5px;color:var(--text2)">This lead is assigned but not yet under active review.</span>' +
         '<button id="c-start-review" class="btn primary" style="font-size:11px;padding:4px 10px"><i class="ti ti-play"></i> Start review</button>' +
         '</div>'
-      : '';
+      : (!prepay && !a.assignee && !dec && isAnalyst)
+        ? '<div style="border-top:0.5px solid var(--border2);margin-top:6px;padding-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+          '<span style="font-size:11.5px;color:var(--text2)">This lead is unassigned — claim it to begin your review.</span>' +
+          '<button id="c-assign-me" class="btn primary" style="font-size:11px;padding:4px 10px"><i class="ti ti-user-plus"></i> Assign to me</button>' +
+          '</div>'
+        : '';
     return '<div class="card" style="padding:10px 14px 8px;margin-bottom:12px">' +
       '<div style="display:flex;align-items:flex-start;padding:0 2px 4px">' + dots + '</div>' +
       '<div style="border-top:0.5px solid var(--border2);margin-top:6px;padding-top:6px;font-size:11.5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' + lastHtml + '</div>' +
@@ -1433,10 +1442,14 @@
         'Start reviewing this lead before recording a decision. ' +
         (a.assignee
           ? '<button id="c-dec-startrev" class="btn primary" style="font-size:11px;padding:4px 10px;margin-left:8px"><i class="ti ti-play"></i> Start review</button>'
-          : '<span style="color:var(--text3)">Assign it to an analyst first.</span>') +
+          : (!window.APP.isSupervisor()
+            ? '<button id="c-dec-assignme" class="btn primary" style="font-size:11px;padding:4px 10px;margin-left:8px"><i class="ti ti-user-plus"></i> Assign to me</button>'
+            : '<span style="color:var(--text3)">Assign it to an analyst first.</span>')) +
         '</div>';
       var dsr = document.getElementById("c-dec-startrev");
       if (dsr) dsr.addEventListener("click", function () { window.APP.startLeadReview(id); rerender(id); });
+      var decAm = document.getElementById("c-dec-assignme");
+      if (decAm) decAm.addEventListener("click", function () { window.APP.assignCase(id, window.APP.ROLES[window.APP.state.role].name); rerender(id); });
       return;
     }
     var returnedNote = (dec && dec.reviewState === "returned") ? (dec.returnNote || "(no note)") : null;
