@@ -17,16 +17,14 @@
     return "ML/AI";                                     // Pattern Recognition / Both → ML/AI-driven
   }
 
-  // Lead → Case model (Patel's definition): a flagged item is a LEAD; once it is
-  // reviewed & CONFIRMED (or escalated) it turns into / joins the provider's CASE.
-  // Multiple confirmed leads on one provider roll into one case. Dismissed leads
-  // never open a case; still-open leads only "feed in" until they're confirmed.
-  var CASE_STATUS = { "Pending review": 1, "Confirmed": 1, "Escalated": 1 };
+  // Lead → Case model: a flagged item is a LEAD; once the supervisor APPROVES the
+  // analyst's Confirm or Escalate decision, the lead joins or opens the provider's CASE.
+  // Leads with status "Pending review" are awaiting supervisor approval and do NOT yet
+  // appear in the Cases list. Dismissed leads never open a case.
+  var CASE_STATUS = { "Confirmed": 1, "Escalated": 1 };
   var CLOSED_STATUS = { "Dismissed": 1, "Cleared to pay": 1, "Denied": 1 };
   function isCaseLead(a) {
-    if (CASE_STATUS[a.status]) return true;
-    var dec = window.APP && window.APP.state && window.APP.state.decisions && window.APP.state.decisions[a.id];
-    return !!(dec && (dec.outcome === "confirm" || dec.outcome === "escalate"));
+    return !!CASE_STATUS[a.status];
   }
   function usd(n) { return "$" + Math.round(n).toLocaleString(); }
   function usdShort(n) {

@@ -80,6 +80,7 @@
 
         // ---- main ----
         '<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">' +
+        (hasCase ? caseMilestoneHtml(casePid) : '') +
         '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">' +
         kpi("Claims", p.claimCount || claims.length) + kpi("Anomalous visits", flaggedVisits) +
         kpi(hasCase ? "Confirmed · open" : "Open leads", hasCase ? (caseInfo.leadCount + " · " + caseInfo.openCount) : allegs.length) + kpi("Lead exposure", window.DP.usdShort(exposure)) +
@@ -276,6 +277,56 @@
   }
 
   function kpi(l, v) { return '<div class="kpi"><div class="l">' + l + '</div><div class="v">' + v + '</div></div>'; }
+
+  // ---------- case lifecycle tracker ----------
+  // Stage labels live here so Josh can rename them without touching the logic.
+  var CASE_STAGES = ["Case opened", "Case development", "Supervisor review", "Disposition", "Closed"];
+
+  // Derive the current stage index (1-based) and an optional note from existing
+  // state — no new state, no new actions.
+  function caseMilestoneModel(pid) {
+    var closed  = window.APP.isCaseClosed(pid);
+    var ref     = window.APP.referralFor(pid);
+    var review  = window.APP.caseReviewFor(pid);
+
+    if (closed)
+      return { cur: 5, note: null };
+
+    if (review && review.status === "approved")
+      return { cur: 4, note: ref ? "Referred to " + window.APP.esc(ref.label) + "." : null };
+
+    if (review && review.status === "pending")
+      return { cur: 3, note: "Submitted by " + window.APP.esc(review.submittedBy) + " — awaiting supervisor review (Karen Boyd)." };
+
+    if (review && review.status === "returned")
+      return { cur: 2, note: "Returned by " + window.APP.esc(review.reviewedBy || "supervisor") + (review.note ? ": " + window.APP.esc(review.note) : "") + " — revise and resubmit." };
+
+    // No review record, not closed: case development
+    return { cur: 2, note: null };
+  }
+
+  function caseMilestoneHtml(pid) {
+    var m = caseMilestoneModel(pid);
+    var dots = CASE_STAGES.map(function (label, i) {
+      var done = i < m.cur - 1, cur = i === m.cur - 1;
+      var bg = done ? "var(--accent)" : cur ? "#fff" : "var(--border2)";
+      var bd = done ? "var(--accent)" : cur ? "var(--accent)" : "var(--border)";
+      var inner = done
+        ? '<i class="ti ti-check" style="color:#fff;font-size:10px"></i>'
+        : cur ? '<span style="width:6px;height:6px;border-radius:50%;background:var(--accent);display:block"></span>' : '';
+      var isLast = i === CASE_STAGES.length - 1;
+      return '<div style="display:flex;align-items:center;flex:' + (isLast ? "none" : "1") + ';min-width:0">' +
+        '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;flex:none">' +
+        '<div style="width:16px;height:16px;border-radius:50%;background:' + bg + ';border:1.5px solid ' + bd + ';display:flex;align-items:center;justify-content:center">' + inner + '</div>' +
+        '<span style="font-size:10px;white-space:nowrap;color:' + (done || cur ? "var(--ink)" : "var(--text3)") + ';font-weight:' + (cur ? "600" : "400") + '">' + window.APP.esc(label) + '</span></div>' +
+        (isLast ? '' : '<div style="flex:1;height:1.5px;background:' + (done ? "var(--accent)" : "var(--border2)") + ';margin:0 6px;margin-bottom:15px"></div>') +
+        '</div>';
+    }).join("");
+    return '<div class="card" style="padding:10px 14px 8px;margin-bottom:0">' +
+      '<div style="display:flex;align-items:flex-start;padding:0 2px 4px">' + dots + '</div>' +
+      (m.note ? '<div style="border-top:0.5px solid var(--border2);margin-top:6px;padding-top:6px;font-size:11px;color:var(--text2)"><i class="ti ti-info-circle"></i> ' + m.note + '</div>' : '') +
+      '</div>';
+  }
 
   // ---------- case narrative ----------
   // The story spanning a case's leads. A lead's justification explains one claim;

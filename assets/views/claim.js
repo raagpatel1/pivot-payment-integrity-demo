@@ -95,6 +95,8 @@
       if (sumBtn) sumBtn.addEventListener("click", function () { if (window.COPILOT) window.COPILOT.summarize(id); });
       var msHist = document.getElementById("c-ms-hist");
       if (msHist) msHist.addEventListener("click", function () { showTab("history"); });
+      var srBtn = document.getElementById("c-start-review");
+      if (srBtn) srBtn.addEventListener("click", function () { window.APP.startLeadReview(id); rerender(id); });
       wireExport(id, a, cl, p, prepay, kind);
       mount.querySelectorAll(".ctab").forEach(function (b) { b.addEventListener("click", function () { showTab(b.getAttribute("data-tab")); }); });
 
@@ -128,11 +130,15 @@
       return { steps: ["Flagged", "Assigned", "Under review", "Triage decision", out], cur: pd ? 5 : (a.assignee ? 2 : 1), note: null };
     }
     var steps = ["Flagged", "Assigned", "Under review", "Decision", "Supervisor review", "Pending Case"];
-    if (!dec) return { steps: steps, cur: a.assignee ? 2 : 1, note: null };
+    if (!dec) {
+      // status-driven position before any decision is submitted
+      var cur = a.status === "Under review" ? 3 : (a.assignee ? 2 : 1);
+      return { steps: steps, cur: cur, note: null };
+    }
     // returned: the analyst owns it again, so Decision is the live step
     if (dec.reviewState === "returned") return { steps: steps, cur: 4, note: "Returned by the supervisor — revise and resubmit." };
     if (dec.outcome === "dismiss") return { steps: ["Flagged", "Assigned", "Under review", "Decision", "Dismissed"], cur: 5, note: "Dismissed as a false positive — analyst-final, no supervisor review." };
-    // pending: the decision is made and the supervisor is the live step
+    // pending: the decision is submitted and the supervisor is the live step
     if (dec.reviewState === "pending") return { steps: steps, cur: 5, note: "Awaiting supervisor review (Karen Boyd)." };
     return { steps: steps, cur: 6, note: dec.outcome === "escalate" ? "Escalated into a case." : "Confirmed — recovery submitted; the lead now feeds its case." };
   }
@@ -154,10 +160,19 @@
     var lastHtml = last
       ? '<i class="ti ti-' + ((HIST_ICON[last.action] || ["point"])[0]) + '" style="color:var(--accent-d)"></i> <span style="color:var(--text2)">Last action:</span> <span style="font-weight:500">' + window.APP.esc(histLabel(last.action)) + '</span> <span style="color:var(--text2)">· ' + window.APP.esc(last.user || "—") + ' · ' + window.APP.fmtTs(last.ts) + '</span> <span id="c-ms-hist" style="color:var(--accent-d);cursor:pointer;margin-left:4px">View history →</span>'
       : '<span style="color:var(--text2)">No activity recorded yet.</span>';
+    // Show "Start review" button when: not prepay, assigned, no decision yet, not yet
+    // under review. The button id is wired in render() after DOM insertion.
+    var startBtn = (!prepay && a.assignee && !dec && a.status !== "Under review")
+      ? '<div style="border-top:0.5px solid var(--border2);margin-top:6px;padding-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">' +
+        '<span style="font-size:11.5px;color:var(--text2)">This lead is assigned but not yet under active review.</span>' +
+        '<button id="c-start-review" class="btn primary" style="font-size:11px;padding:4px 10px"><i class="ti ti-play"></i> Start review</button>' +
+        '</div>'
+      : '';
     return '<div class="card" style="padding:10px 14px 8px;margin-bottom:12px">' +
       '<div style="display:flex;align-items:flex-start;padding:0 2px 4px">' + dots + '</div>' +
       '<div style="border-top:0.5px solid var(--border2);margin-top:6px;padding-top:6px;font-size:11.5px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">' + lastHtml + '</div>' +
       (m.note ? '<div style="font-size:11px;color:var(--text2);padding-top:4px"><i class="ti ti-info-circle"></i> ' + window.APP.esc(m.note) + '</div>' : '') +
+      startBtn +
       '</div>';
   }
 
@@ -174,7 +189,7 @@
     var notes = window.APP.getComments(id);
     return '<div class="card" id="c-notes" style="margin-top:12px">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;gap:10px;flex-wrap:wrap">' +
-      '<div style="font-weight:500;font-size:13px"><i class="ti ti-messages" style="color:var(--accent-d)"></i> Case notes &amp; annotations <span class="muted" style="font-weight:400;font-size:11px">· running commentary on this lead — every note is logged to the audit trail</span></div>' +
+      '<div style="font-weight:500;font-size:13px"><i class="ti ti-messages" style="color:var(--accent-d)"></i> Lead notes &amp; annotations <span class="muted" style="font-weight:400;font-size:11px">· running commentary on this lead — every note is logged to the audit trail</span></div>' +
       '<span class="muted" style="font-size:11px" id="c-notes-count">' + notes.length + ' note' + (notes.length === 1 ? '' : 's') + '</span></div>' +
       '<div id="c-notes-list">' + notesListHtml(notes) + '</div>' +
       '<div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px">' +
@@ -1134,7 +1149,7 @@
   // Every action on this lead, newest first — the "who did what, when" record an
   // investigator needs when a case is handed over or challenged on appeal.
   var HIST_ICON = {
-    LEAD_CREATED: ["flag", "var(--text2)"], CASE_ASSIGNED: ["user-plus", "var(--accent-d)"],
+    LEAD_CREATED: ["flag", "var(--text2)"], CASE_ASSIGNED: ["user-plus", "var(--accent-d)"], LEAD_REVIEW_STARTED: ["eye", "var(--accent-d)"],
     DECISION_CONFIRM: ["gavel", "var(--high)"], DECISION_DISMISS: ["circle-x", "var(--text2)"], DECISION_ESCALATE: ["arrow-up-right", "var(--med)"],
     PREPAY_PAY: ["check", "var(--low)"], PREPAY_HOLD: ["clock-hour-4", "var(--med)"], PREPAY_DENY: ["ban", "var(--high)"],
     SUBMITTED_FOR_REVIEW: ["send", "var(--accent-d)"], SUPERVISOR_APPROVED: ["circle-check", "var(--low)"], SUPERVISOR_RETURNED: ["corner-up-left", "var(--med)"],
@@ -1409,6 +1424,21 @@
       box.innerHTML = '<div style="font-weight:500;font-size:13px;margin-bottom:9px">Decision</div><div class="muted" style="font-size:12px"><i class="ti ti-user-shield"></i> Awaiting analyst decision. Switch to the Analyst role to record a decision.</div>';
       return;
     }
+    // Gate: the lead must be Under review (or returned) before the analyst can decide.
+    // A returned lead is always under review in practice, so that path is always open.
+    if (a.status !== "Under review" && a.status !== "Returned") {
+      box.innerHTML = '<div style="font-weight:500;font-size:13px;margin-bottom:9px">Decision</div>' +
+        '<div style="background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text2)">' +
+        '<i class="ti ti-play" style="color:var(--accent-d)"></i> ' +
+        'Start reviewing this lead before recording a decision. ' +
+        (a.assignee
+          ? '<button id="c-dec-startrev" class="btn primary" style="font-size:11px;padding:4px 10px;margin-left:8px"><i class="ti ti-play"></i> Start review</button>'
+          : '<span style="color:var(--text3)">Assign it to an analyst first.</span>') +
+        '</div>';
+      var dsr = document.getElementById("c-dec-startrev");
+      if (dsr) dsr.addEventListener("click", function () { window.APP.startLeadReview(id); rerender(id); });
+      return;
+    }
     var returnedNote = (dec && dec.reviewState === "returned") ? (dec.returnNote || "(no note)") : null;
     // Where the lead lands (required when confirming/escalating). The engine ranks
     // the candidate cases and says WHY each is a candidate, so the analyst chooses
@@ -1429,12 +1459,12 @@
     }).join("");
     var caseBlockHtml =
       '<div id="c-case" style="display:none;background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:9px 11px;margin-bottom:10px">' +
-      '<div style="font-size:11.5px;font-weight:500;margin-bottom:2px"><i class="ti ti-folder" style="color:var(--accent-d)"></i> Convert to a case <span style="color:var(--high-tx)">*</span></div>' +
-      '<div class="muted" style="font-size:11px;margin-bottom:7px">This lead does not get paid — it has to land somewhere. Add it to an existing case or open a new one.</div>' +
+      '<div style="font-size:11.5px;font-weight:500;margin-bottom:2px"><i class="ti ti-folder" style="color:var(--accent-d)"></i> Proposed case placement after approval <span style="color:var(--high-tx)">*</span></div>' +
+      '<div class="muted" style="font-size:11px;margin-bottom:7px">Select where this lead should go if the supervisor approves the decision. The case will be created or updated after approval.</div>' +
       suggRows +
       '<label style="display:flex;gap:8px;align-items:flex-start;padding:7px 8px;border:0.5px solid var(--border);border-radius:7px;cursor:pointer;background:#fff">' +
       '<input type="radio" name="c-casemode" value="new" style="margin-top:2px"' + (best ? "" : " checked") + '>' +
-      '<div><div style="font-size:12px;font-weight:500">Open a new case for ' + window.APP.esc(a.provider ? a.provider.name : "this provider") + '</div>' +
+      '<div><div style="font-size:12px;font-weight:500">Propose a new case for ' + window.APP.esc(a.provider ? a.provider.name : "this provider") + '</div>' +
       '<div style="font-size:11px;color:var(--text2);margin-top:1px">' + (best ? "Use this if the lead is unrelated to the cases above." : "No open case is a candidate for this lead.") + '</div></div></label>' +
       (others.length ? '<div style="margin-top:7px"><label style="display:flex;gap:8px;align-items:center;cursor:pointer;font-size:12px">' +
         '<input type="radio" name="c-casemode" value="other"> Add to another open case</label>' +
@@ -1445,9 +1475,9 @@
       '<div style="font-weight:500;font-size:13px;margin-bottom:9px">Decision</div>' +
       (returnedNote !== null ? '<div style="background:var(--med-bg);border:0.5px solid #e7c99a;border-radius:7px;padding:8px 10px;font-size:11.5px;color:var(--med-tx);margin-bottom:10px"><i class="ti ti-corner-up-left"></i> Returned by supervisor (Karen Boyd): ' + window.APP.esc(returnedNote) + ' — please revise and resubmit.</div>' : '') +
       '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      '<div class="seg" data-d="c"><i class="ti ti-check"></i> Confirm<div class="sub">improper — convert to a case</div></div>' +
+      '<div class="seg" data-d="c"><i class="ti ti-check"></i> Confirm<div class="sub">improper — propose a case</div></div>' +
       '<div class="seg" data-d="d"><i class="ti ti-x"></i> Dismiss<div class="sub">clean — payment stands</div></div>' +
-      '<div class="seg" data-d="e"><i class="ti ti-arrow-up-right"></i> Escalate<div class="sub">coordinated — convert to a case</div></div></div>' +
+      '<div class="seg" data-d="e"><i class="ti ti-arrow-up-right"></i> Escalate<div class="sub">coordinated — propose a case</div></div></div>' +
       '<div id="c-hint" style="font-size:11.5px;color:var(--text2);margin-bottom:8px;min-height:16px"></div>' +
       caseBlockHtml +
       reasonBlockHtml() +
@@ -1458,9 +1488,9 @@
     var choice = null;
     var outMap = { c: "confirm", d: "dismiss", e: "escalate" };
     var hints = {
-      c: "Confirms improper payment — " + window.DP.usd(a.exposurePost) + " moves to Submitted for recovery. The lead converts to a case below.",
+      c: "Confirms improper payment — " + window.DP.usd(a.exposurePost) + " will be submitted for recovery after supervisor approval. Select the proposed case placement below.",
       d: "The claim is clean — payment stands and nothing is recovered. Logged as a false positive so the outcome feeds model retraining; no case is opened.",
-      e: "Escalates as coordinated behavior for investigation. The lead converts to a case below."
+      e: "Escalates as coordinated behavior for investigation. Select the proposed case placement below — the case will be opened after supervisor approval."
     };
     var needsCase = function () { return choice === "c" || choice === "e"; };
     var caseValid = function () {
@@ -1529,7 +1559,10 @@
     if (window.APP.isSupervisor()) return;
     // prepay: hide once triaged. retro: hide once decided, EXCEPT when a supervisor
     // returned it (the analyst still needs to revise & resubmit).
+    // Also hide for retro leads that are not yet Under review (and not returned) —
+    // the analyst must start review before they can decide.
     if (prepay ? !!dec : (dec && dec.reviewState !== "returned")) return;
+    if (!prepay && !dec && a.status !== "Under review") return;
     var bar = document.createElement("div");
     bar.className = "c-sticky";
     bar.style.cssText = "position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:150;background:var(--ink);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,0.22);display:flex;align-items:center;gap:7px;padding:7px 12px;font-family:var(--sans)";

@@ -57,7 +57,9 @@
     },
 
     // Analyst submits a decision. Confirm/Escalate route to the supervisor queue;
-    // Dismiss is analyst-final. Recovery/investigation only fire on supervisor approval.
+    // Dismiss is analyst-final. Case is NOT opened yet — that happens only when the
+    // supervisor approves (see supervisorAction). The analyst's proposed case
+    // destination is already recorded in caseLinks by setLeadCase (logged as CASE_LINK).
     applyDecision: function (id, outcome, rationale, reason) {
       var a = window.DP.raw.allegations.find(function (x) { return x.id === id; });
       if (!a) return;
@@ -69,16 +71,14 @@
       APP.auditLog("DECISION_" + outcome.toUpperCase(), "Lead #" + id + " · " + (final ? "Dismissed (false positive)" : outcome) + (reason ? " · reason " + APP.reasonLabel(outcome, reason) : "") + (rationale ? " · justification recorded" : ""));
       if (!final) {
         APP.auditLog("SUBMITTED_FOR_REVIEW", "Lead #" + id + " · " + outcome + " → supervisor (Karen Boyd)");
-        // the analyst chose (Decision tab) to open a new case or add to an existing one
-        var link = (APP.state.caseLinks || {})[id];
-        var isNew = !link || String(link).indexOf("new:") === 0;
-        var pv = window.DP.getProvider(a.providerId);
-        APP.auditLog(isNew ? "CASE_OPENED" : "CASE_UPDATED", "Lead #" + id + " · " + (outcome === "escalate" ? "escalated" : "confirmed") + " → " + (isNew ? "opened a new case" : "added to an existing case") + " for " + a.providerId + (pv ? " (" + pv.name + ")" : ""));
       }
       APP.updateSupBadge();
     },
 
     // Supervisor approves or returns a pending decision.
+    // On approval of Confirm or Escalate: the lead's status becomes Confirmed/Escalated
+    // (making it a case lead via isCaseLead), and CASE_OPENED or CASE_UPDATED is logged
+    // exactly once based on the analyst's proposed case destination (caseLinks[id]).
     supervisorAction: function (id, action, note) {
       var dec = APP.state.decisions[id]; if (!dec) return;
       var a = window.DP.raw.allegations.find(function (x) { return x.id === id; });
@@ -88,7 +88,12 @@
         dec.status = a.status;
         APP.auditLog("SUPERVISOR_APPROVED", "Lead #" + id + " · " + a.status + " · approver Karen Boyd");
         if (dec.outcome === "confirm") APP.auditLog("RECOVERY_SUBMITTED", "Lead #" + id + " · " + window.DP.usd(a.exposurePost || 0));
-        if (dec.outcome === "escalate") { APP.state.investigations.push(id); APP.auditLog("CASE_OPENED", "Lead #" + id + " · " + a.providerId); }
+        if (dec.outcome === "escalate") { APP.state.investigations.push(id); }
+        // Case is created or updated now — after approval — exactly once.
+        var link = (APP.state.caseLinks || {})[id];
+        var isNew = !link || String(link).indexOf("new:") === 0;
+        var pv = window.DP.getProvider(a.providerId);
+        APP.auditLog(isNew ? "CASE_OPENED" : "CASE_UPDATED", "Lead #" + id + " · " + (dec.outcome === "escalate" ? "escalated" : "confirmed") + " → " + (isNew ? "case opened" : "added to existing case") + " for " + a.providerId + (pv ? " (" + pv.name + ")" : ""));
       } else {
         dec.reviewState = "returned"; dec.returnNote = note || "";
         a.status = "Returned"; dec.status = "Returned";
@@ -221,6 +226,20 @@
       a.assignee = name || null;
       if (name && a.status === "New") a.status = "Assigned";
       APP.auditLog("CASE_ASSIGNED", "Lead #" + id + " · " + (name ? "→ " + name : "unassigned"));
+    },
+
+    // Analyst opens a retrospective lead for active review, advancing the workflow
+    // from Assigned → Under review. Guards: must be retrospective, must be assigned,
+    // must not already have a submitted decision.
+    startLeadReview: function (id) {
+      var a = window.DP.raw.allegations.find(function (x) { return x.id === id; });
+      if (!a) return;
+      if ((a.mode || "retrospective") !== "retrospective") return;
+      if (!a.assignee) return;
+      if (APP.state.decisions[id]) return;
+      a.status = "Under review";
+      var who = (APP.ROLES[APP.state.role] || {}).name || "Dana Whitmore";
+      APP.auditLog("LEAD_REVIEW_STARTED", "Lead #" + id + " · review started by " + who);
     },
     // ---- typed relationships ----
     // A link records WHY a lead belongs to a case, not just that it does. The reason
@@ -663,7 +682,7 @@
           if (done >= pl.n) return;
           if (["Confirmed", "Escalated", "Dismissed", "Pending review"].indexOf(a.status) >= 0) return;
           if (pl.outcome === "escalate") { a.status = "Escalated"; APP.state.decisions[a.id] = { outcome: "escalate", rationale: "Reviewed and escalated — coordinated behavior; opened a provider case.", ts: new Date(), status: "Escalated", reviewState: "approved" }; }
-          else { a.status = "Pending review"; APP.state.decisions[a.id] = { outcome: "confirm", rationale: "Reviewed and confirmed improper payment — added to the provider case; recovery pending supervisor approval.", ts: new Date(), status: "Pending review", reviewState: "pending" }; }
+          else { a.status = "Confirmed"; APP.state.decisions[a.id] = { outcome: "confirm", rationale: "Reviewed and confirmed improper payment — added to the provider case; recovery submitted.", ts: new Date(), status: "Confirmed", reviewState: "approved" }; }
           done++;
         });
       });

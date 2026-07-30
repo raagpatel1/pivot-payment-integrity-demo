@@ -22,7 +22,7 @@
       mount.innerHTML =
         '<div class="page">' +
         '<div class="page-head"><div><div class="page-title">Leads</div><div class="page-sub">Flagged claims routed for post-payment review — each is one lead</div></div>' +
-        '<div style="display:flex;gap:10px;align-items:center"><div style="display:flex;gap:2px;background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:2px">' + seg("all", "All open") + seg("my", "My cases") + seg("unassigned", "Unassigned") + '</div><button class="btn primary" id="q-newlead" style="font-size:12px"><i class="ti ti-plus"></i> Create lead</button>' + window.EXPORT.group("q") + '</div></div>' +
+        '<div style="display:flex;gap:10px;align-items:center"><div style="display:flex;gap:2px;background:var(--surface);border:0.5px solid var(--border);border-radius:8px;padding:2px">' + seg("all", "All open") + seg("my", "My leads") + seg("unassigned", "Unassigned") + '</div><button class="btn primary" id="q-newlead" style="font-size:12px"><i class="ti ti-plus"></i> Create lead</button>' + window.EXPORT.group("q") + '</div></div>' +
         '<div class="kpis">' +
         kpi("Open leads", openCount) + kpi("Exposure (open queue)", window.DP.usd(openExp)) +
         kpi("Submitted for recovery", window.DP.usdShort(k.submittedForRecovery)) + kpi("Verified recoupment", window.DP.usdShort(k.verifiedRecoupment)) +
