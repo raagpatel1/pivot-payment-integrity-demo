@@ -128,7 +128,23 @@
           var open = drill.style.display !== "none";
           if (open) { drill.style.display = "none"; }
           else {
-            if (!drill.getAttribute("data-filled")) { drill.innerHTML = ruleDetailHtml(window.DP.getRuleDetail(id)); drill.setAttribute("data-filled", "1"); window.APP.auditLog("RULE_DRILLDOWN", "Rule " + id); }
+            if (!drill.getAttribute("data-filled")) {
+              drill.innerHTML = ruleDetailHtml(window.DP.getRuleDetail(id));
+              if (id === "rule_ncci_43235_43239" || id === "rule_mod59") {
+                var btn = document.createElement("button");
+                btn.className = "btn primary";
+                btn.style.cssText = "font-size:11px;padding:4px 10px;margin:6px 0 2px";
+                btn.textContent = "View example Lead 20517";
+                btn.addEventListener("click", function (e) {
+                  e.stopPropagation();
+                  window.APP.state.highlightRule = id;
+                  window.APP.openAllegation("20517");
+                });
+                drill.appendChild(btn);
+              }
+              drill.setAttribute("data-filled", "1");
+              window.APP.auditLog("RULE_DRILLDOWN", "Rule " + id);
+            }
             drill.style.display = "block";
           }
           var c = row.querySelector(".rule-caret"); if (c) c.style.transform = open ? "" : "rotate(90deg)";
